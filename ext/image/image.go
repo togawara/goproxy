@@ -2,14 +2,15 @@ package goproxy_image
 
 import (
 	"bytes"
-	. "github.com/elazarl/goproxy"
-	"github.com/elazarl/goproxy/regretable"
 	"image"
 	_ "image/gif"
 	"image/jpeg"
 	"image/png"
 	"io/ioutil"
 	"net/http"
+
+	. "github.com/elazarl/goproxy"
+	"github.com/elazarl/goproxy/regretable"
 )
 
 var RespIsImage = ContentTypeIs("image/gif",
@@ -43,20 +44,19 @@ func HandleImage(f func(img image.Image, ctx *ProxyCtx) image.Image) RespHandler
 		}
 		result := f(img, ctx)
 		buf := bytes.NewBuffer([]byte{})
-		switch contentType {
 		// No gif image encoder in go - convert to png
-		case "image/gif", "image/png":
+		if ContentTypeIs(contentType, "image/gif", "image/png").HandleResp(resp, ctx) {
 			if err := png.Encode(buf, result); err != nil {
 				ctx.Warnf("Cannot encode image, returning orig %v %v", ctx.Req.URL.String(), err)
 				return resp
 			}
 			resp.Header.Set("Content-Type", "image/png")
-		case "image/jpeg", "image/pjpeg":
+		} else if ContentTypeIs(contentType, "image/jpeg", "image/pjpeg").HandleResp(resp, ctx) {
 			if err := jpeg.Encode(buf, result, nil); err != nil {
 				ctx.Warnf("Cannot encode image, returning orig %v %v", ctx.Req.URL.String(), err)
 				return resp
 			}
-		case "application/octet-stream":
+		} else if ContentTypeIs(contentType, "application/octet-stream").HandleResp(resp, ctx) {
 			switch imgType {
 			case "jpeg":
 				if err := jpeg.Encode(buf, result, nil); err != nil {
@@ -69,7 +69,7 @@ func HandleImage(f func(img image.Image, ctx *ProxyCtx) image.Image) RespHandler
 					return resp
 				}
 			}
-		default:
+		} else {
 			panic("unhandlable type" + contentType)
 		}
 		resp.Body = ioutil.NopCloser(buf)
